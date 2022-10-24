@@ -123,6 +123,8 @@ Widget::Widget(QWidget *parent) : QWidget(parent), isSent(false) {
             if(nameflag == 0)
             {
                 connectButton->setText(tr("Log In"));
+                QMessageBox::warning(this, tr("Chatting Client"), \
+                                      tr("No such name"));
             }
             else
             {

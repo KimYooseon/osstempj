@@ -341,6 +341,7 @@ void ChatServerForm::removeClientFromServer(int i)
 void ChatServerForm::modifyClientFromServer(QString name, int id, int i)
 {
     ui->clientTreeWidget->topLevelItem(i)->setText(1, name);
+    clientIDHash[name] = id;
 }
 
 
@@ -357,7 +358,7 @@ void ChatServerForm::clientNameSended(QString name)
 {
     int nameflag;
 
-    qDebug() << "dddddddddddd" << ui->clientTreeWidget->findItems(name, Qt::MatchFixedString, 1).length();
+    qDebug() << "dddddddddddd" << ui->clientTreeWidget->findItems(name, Qt::MatchFixedString, 1)/*.length()*/;
     if(ui->clientTreeWidget->findItems(name, Qt::MatchFixedString, 1).length() == 0)
         nameflag = 0;
     else

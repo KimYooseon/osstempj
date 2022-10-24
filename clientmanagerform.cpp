@@ -9,28 +9,35 @@ ClientManagerForm::ClientManagerForm(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::ClientManagerForm)
 {
+    //ui 설정 부분
     ui->setupUi(this);
 
+    //위젯의 사이즈 설정. 540은 전체 화면의 왼쪽에 해당하는 비중, 400은 전체 화면의 오른쪽에 해당하는 비중
     QList<int> sizes;
     sizes << 540 << 400;
     ui->splitter->setSizes(sizes);
 
+    //remove 액션 추가. remove를 클릭했을 때 아이템이 삭제되도록 만듦
     QAction* removeAction = new QAction(tr("&Remove"));
     connect(removeAction, SIGNAL(triggered()), SLOT(removeItem()));
 
+    //메뉴를 생성하고 remove 액션을 메뉴에 추가
     menu = new QMenu;
     menu->addAction(removeAction);
+
     ui->treeWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+
+    //트리위젯의 컬럼별 너비 설정
     ui->treeWidget->setColumnWidth(0,50);
     ui->treeWidget->setColumnWidth(1,70);
     ui->treeWidget->setColumnWidth(2,110);
-
 
     connect(ui->treeWidget, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
     connect(ui->searchLineEdit, SIGNAL(returnPressed()),
             this, SLOT(on_searchPushButton_clicked()));
 }
 
+// 저장된 텍스트를 가져오는 부분
 void ClientManagerForm::loadData()
 {
     QFile file("clientlist.txt");
@@ -38,13 +45,13 @@ void ClientManagerForm::loadData()
         return;
 
     QTextStream in(&file);
-    while (!in.atEnd()) {
+    while (!in.atEnd()) {       //파일이 끝까지 읽힐 때까지 반복함
         QString line = in.readLine();
-        QList<QString> row = line.split(", ");
-        if(row.size()) {
-            int id = row[0].toInt();
+        QList<QString> row = line.split(", ");  //", "을 기준으로 데이터를 구분해 데이터를 저장함
+        if(row.size()) {                        //행이 0개가 아닐 때
+            int id = row[0].toInt();            //스트링값을 toInt() 함수를 통해 정수값으로 변환
             ClientItem* c = new ClientItem(id, row[1], row[2], row[3]);
-            ui->treeWidget->addTopLevelItem(c);
+            ui->treeWidget->addTopLevelItem(c); //ClientItem을 저장함
             clientList.insert(id, c);
 
             emit clientAdded(row[1], row[0].toInt());
