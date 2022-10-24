@@ -19,11 +19,13 @@
 
 #define BLOCK_SIZE      1024
 
-Widget::Widget(QWidget *parent) : QWidget(parent) {
+Widget::Widget(QWidget *parent) : QWidget(parent), isSent(false) {
     // 연결한 서버 정보 입력을 위한 위젯들
     name = new QLineEdit(this);
+    QSettings settings("ChatClient", "Chat Client");
+    name->setText(settings.value("ChatClient/ID").toString());
 
-    QLineEdit* serverAddress = new QLineEdit(this);
+    serverAddress = new QLineEdit(this);
     serverAddress->setText("127.0.0.1");
     //serverAddress->setInputMask("999.999.999.999;_");
     QRegularExpression re("^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\."
@@ -34,12 +36,13 @@ Widget::Widget(QWidget *parent) : QWidget(parent) {
     serverAddress->setPlaceholderText("Server IP Address");
     serverAddress->setValidator(&validator);
 
-    QLineEdit* serverPort = new QLineEdit(this);
-    serverPort->setText("8000");
+    serverPort = new QLineEdit(this);
+    serverPort->setText(QString::number(PORT_NUMBER));
     serverPort->setInputMask("00000;_");
     serverPort->setPlaceholderText("Server Port No");
 
     connectButton = new QPushButton(tr("Log In"), this);
+
     QHBoxLayout *serverLayout = new QHBoxLayout;
     serverLayout->addWidget(name);
     serverLayout->addStretch(1);
@@ -57,8 +60,8 @@ Widget::Widget(QWidget *parent) : QWidget(parent) {
     sentButton = new QPushButton("Send", this);
     connect(sentButton, SIGNAL(clicked( )), SLOT(sendData( )));
     connect(sentButton, SIGNAL(clicked( )), inputLine, SLOT(clear( )));
-    inputLine->setEnabled(false);
-    sentButton->setEnabled(false);
+    inputLine->setDisabled(true);
+    sentButton->setDisabled(true);
 
     QHBoxLayout *inputLayout = new QHBoxLayout;
     inputLayout->addWidget(inputLine);
@@ -82,17 +85,19 @@ Widget::Widget(QWidget *parent) : QWidget(parent) {
     mainLayout->addWidget(message);
     mainLayout->addLayout(inputLayout);
     mainLayout->addLayout(buttonLayout);
-
     setLayout(mainLayout);
 
+    /* 채팅을 위한 소켓 */
     clientSocket = new QTcpSocket(this);			// 클라이언트 소켓 생성
     connect(clientSocket, &QAbstractSocket::errorOccurred,
             [=]{ qDebug( ) << clientSocket->errorString( ); });
     connect(clientSocket, SIGNAL(readyRead( )), SLOT(receiveData( )));
     connect(clientSocket, SIGNAL(disconnected( )), SLOT(disconnect( )));
 
-    QSettings settings("ChatClient", "Chat Client");
-    name->setText(settings.value("ChatClient/ID").toString());
+    /* 파일 전송을 위한 소켓 */
+    fileClient = new QTcpSocket(this);
+    connect(fileClient, SIGNAL(bytesWritten(qint64)), SLOT(goOnSend(qint64)));
+    //    connect(fileClient, SIGNAL(disconnected( )), fileClient, SLOT(deletelater( )));
 
     progressDialog = new QProgressDialog(0);
     progressDialog->setAutoClose(true);
@@ -105,8 +110,25 @@ Widget::Widget(QWidget *parent) : QWidget(parent) {
                                         serverPort->text( ).toInt( ));
             clientSocket->waitForConnected();
             sendProtocol(Chat_Login, name->text().toStdString().data());
+
+            //수정중
+            qDebug()<<name->text().toStdString().data();
+
+            QString clientname = name->text().toStdString().data();
+            emit sendClientNameToServer(clientname);
+
+            //없는 고객이름이 들어가면 nameflag가 0, 있는 고객이름이 들어가면 nameflag가 1이 되어야 하는데
+            //멤버변수로 nameflag를 빼 주었는데도 nameflag값이 바뀌지가 않음 ㅠㅠ
+            qDebug() << "네임플래그: " << nameflag;
+            if(nameflag == 0)
+            {
+                connectButton->setText(tr("Log In"));
+            }
+            else
+            {
             connectButton->setText(tr("Chat in"));
             name->setReadOnly(true);
+            }
         } else if(connectButton->text() == tr("Chat in"))  {
             sendProtocol(Chat_In, name->text().toStdString().data());
             connectButton->setText(tr("Chat Out"));
@@ -132,6 +154,7 @@ Widget::~Widget( )
     settings.setValue("ChatClient/ID", name->text());
 }
 
+/* 창이 닫힐 때 서버에 연결 접속 메시지를 보내고 종료 */
 void Widget::closeEvent(QCloseEvent*)
 {
     sendProtocol(Chat_LogOut, name->text().toStdString().data());
@@ -140,6 +163,7 @@ void Widget::closeEvent(QCloseEvent*)
         clientSocket->waitForDisconnected();
 }
 
+/* 데이터를 받을 때 */
 void Widget::receiveData( )
 {
     QTcpSocket *clientSocket = dynamic_cast<QTcpSocket *>(sender( ));
@@ -148,48 +172,54 @@ void Widget::receiveData( )
 
     Chat_Status type;       // 채팅의 목적
     char data[1020];        // 전송되는 메시지/데이터
+    memset(data, 0, 1020);
 
     QDataStream in(&bytearray, QIODevice::ReadOnly);
-    in >> type;
-    in.readRawData(data, 1020);
+    in.device()->seek(0);
+    in >> type;             // 패킷의 타입
+    in.readRawData(data, 1020);     // 실제 데이터
 
     switch(type) {
-    case Chat_Talk:
-        message->append(QString(data));
-        inputLine->setEnabled(true);
-        sentButton->setEnabled(true);
-        fileButton->setEnabled(true);
+    case Chat_Talk:         // 온 패킷의 타입이 대화이면
+        if (flag == 0)
+        {
+            message->append(QString(data));     // 온메시지를 화면에 표시
+            inputLine->setEnabled(true);        // 버튼의 상태 변경
+            sentButton->setEnabled(true);
+            fileButton->setEnabled(true);
+        }
+        else if (flag == 1)
+        {
+            inputLine->setEnabled(false);        // 버튼의 상태 변경
+            sentButton->setEnabled(false);
+            fileButton->setEnabled(false);
+        }
         break;
-    case Chat_KickOut:
+    case Chat_KickOut:      // 강퇴면
+        flag = 1;
+
         QMessageBox::critical(this, tr("Chatting Client"), \
                               tr("Kick out from Server"));
-        inputLine->setDisabled(true);
+        inputLine->setDisabled(true);       // 버튼의 상태 변경
         sentButton->setDisabled(true);
         fileButton->setDisabled(true);
-        name->setReadOnly(false);
+        name->setReadOnly(false);           // 메시지 입력 불가
+
         break;
-    case Chat_Invite:
+    case Chat_Invite:       // 초대면
+        flag = 0;
         QMessageBox::critical(this, tr("Chatting Client"), \
                               tr("Invited from Server"));
         inputLine->setEnabled(true);
         sentButton->setEnabled(true);
         fileButton->setEnabled(true);
-        name->setReadOnly(true);
+        name->setReadOnly(true);            // 메시지 입력 가능
+        connectButton->setText(tr("Chat Out"));
         break;
     };
 }
 
-void Widget::sendData(  )
-{
-    QString str = inputLine->text( );
-    if(str.length( )) {
-        QByteArray bytearray;
-        bytearray = str.toUtf8( );
-        message->append("<font color=red>나</font> : " + str);
-        sendProtocol(Chat_Talk, bytearray.data());
-    }
-}
-
+/* 연결이 끊어졌을 때 : 상태 변경 */
 void Widget::disconnect( )
 {
     QMessageBox::critical(this, tr("Chatting Client"), \
@@ -200,55 +230,7 @@ void Widget::disconnect( )
     connectButton->setText(tr("Log in"));
 }
 
-void Widget::sendFile( )
-{
-    QString filename = QFileDialog::getOpenFileName(this, tr("Open File"), QDir::homePath());
-    QFileInfo info(filename);
-    if(info.isReadable()) {
-        file = new QFile(filename);
-        if (!file->open(QIODevice::ReadOnly))
-            return;
-
-        connect(clientSocket, SIGNAL(bytesWritten(qint64)), SLOT(goOnSend(qint64)));
-        totalSize = byteToWrite = file->size();
-        loadSize = 1020; // The size of data sent each time
-        sendProtocol(Chat_FileTrans_Start, info.fileName().toUtf8( ).data());
-
-        progressDialog->setMaximum(totalSize);
-        progressDialog->setValue(totalSize-byteToWrite);
-        progressDialog->show();
-
-        char data[1020];
-        memset(data, 0, 1020);
-        int size = file->read(data, loadSize);
-        byteToWrite -= size;
-        sendProtocol(Chat_FileTransfer, data, size);
-    }
-}
-
-void Widget::goOnSend(qint64 numBytes) // Start sending file content
-{
-    char data[1020];
-    memset(data, 0, 1020);
-    qDebug() << byteToWrite << " : " << numBytes;
-    if (byteToWrite == 0) { // Send completed
-        qDebug("File sending completed!");
-        clientSocket->disconnect(SIGNAL(bytesWritten(qint64)));
-        if(file == nullptr) {
-            file->close();
-            delete file;
-            progressDialog->reset();
-            QThread::msleep(500);
-            sendProtocol(Chat_FileTrans_End, data);
-        }
-    } else {
-        int size = file->read(data, 1020);
-        byteToWrite -= size;
-        sendProtocol(Chat_FileTransfer, data, size);
-        progressDialog->setValue(totalSize-byteToWrite);
-    }
-}
-
+/* 프로토콜을 생성해서 서버로 전송 */
 void Widget::sendProtocol(Chat_Status type, char* data, int size)
 {
     QByteArray dataArray;           // 소켓으로 보낼 데이터를 채우고
@@ -259,4 +241,90 @@ void Widget::sendProtocol(Chat_Status type, char* data, int size)
     clientSocket->write(dataArray);     // 서버로 전송
     clientSocket->flush();
     while(clientSocket->waitForBytesWritten());
+}
+
+/* 메시지 보내기 */
+void Widget::sendData(  )
+{
+    QString str = inputLine->text( );
+    if(str.length( )) {
+        QByteArray bytearray;
+        bytearray = str.toUtf8( );
+        /* 화면에 표시 : 앞에 '나'라고 추가 */
+        message->append("<font color=red>나</font> : " + str);
+        sendProtocol(Chat_Talk, bytearray.data());
+    }
+}
+
+/* 파일 전송시 여러번 나눠서 전송 */
+void Widget::goOnSend(qint64 numBytes) // Start sending file content
+{
+    byteToWrite -= numBytes; // Remaining data size
+    outBlock = file->read(qMin(byteToWrite, numBytes));
+    fileClient->write(outBlock);
+
+    progressDialog->setMaximum(totalSize);
+    progressDialog->setValue(totalSize-byteToWrite);
+
+    if (byteToWrite == 0) { // Send completed
+        qDebug("File sending completed!");
+        progressDialog->reset();
+    }
+}
+
+/* 파일 보내기 */
+void Widget::sendFile() // Open the file and get the file name (including path)
+{
+    loadSize = 0;
+    byteToWrite = 0;
+    totalSize = 0;
+    outBlock.clear();
+
+    QString filename = QFileDialog::getOpenFileName(this);
+    if(filename.length()) {
+        file = new QFile(filename);
+        file->open(QFile::ReadOnly);
+
+        qDebug() << QString("file %1 is opened").arg(filename);
+        progressDialog->setValue(0); // Not sent for the first time
+
+        if (!isSent) { // Only the first time it is sent, it happens when the connection generates the signal connect
+            fileClient->connectToHost(serverAddress->text( ),
+                                      serverPort->text( ).toInt( ) + 1);
+            isSent = true;
+        }
+
+        // When sending for the first time, connectToHost initiates the connect signal to call send, and you need to call send after the second time
+
+        byteToWrite = totalSize = file->size(); // The size of the remaining data
+        loadSize = 1024; // The size of data sent each time
+
+        QDataStream out(&outBlock, QIODevice::WriteOnly);
+        out << qint64(0) << qint64(0) << filename << name->text();
+
+        totalSize += outBlock.size(); // The total size is the file size plus the size of the file name and other information
+        byteToWrite += outBlock.size();
+
+        out.device()->seek(0); // Go back to the beginning of the byte stream to write a qint64 in front, which is the total size and file name and other information size
+        out << totalSize << qint64(outBlock.size());
+
+        fileClient->write(outBlock); // Send the read file to the socket
+
+        progressDialog->setMaximum(totalSize);
+        progressDialog->setValue(totalSize-byteToWrite);
+        progressDialog->show();
+    }
+    qDebug() << QString("Sending file %1").arg(filename);
+}
+
+//void A(QHash<QString, int> clientIDHash)
+//{
+//    A = cllientIDHash;
+//}
+
+void Widget::nameFlagSended(int nameflag1)
+{
+    nameflag = nameflag1;
+    qDebug() << "디버깅중" <<nameflag;
+
 }

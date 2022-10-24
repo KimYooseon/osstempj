@@ -129,5 +129,12 @@ void MainWindow::on_actionChat_triggered()
 {
     wd = new Widget;
     wd->show();
+
+
+    connect(wd, SIGNAL(sendClientNameToServer(QString)),
+            serverForm, SLOT(clientNameSended(QString)));
+    connect(serverForm, SIGNAL(sendNameFlag(int)),
+            wd, SLOT(nameFlagSended(int)));
+
 }
 
