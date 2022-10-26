@@ -74,15 +74,15 @@
      </widget>
      <widget class="QToolBox" name="toolBox">
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="inputPage">
        <property name="geometry">
         <rect>
          <x>0</x>
-         <y>-17</y>
+         <y>0</y>
          <width>276</width>
-         <height>278</height>
+         <height>314</height>
         </rect>
        </property>
        <attribute name="label">
@@ -160,6 +160,19 @@
          </layout>
         </item>
         <item>
+         <widget class="QLabel" name="label_2">
+          <property name="font">
+           <font>
+            <pointsize>10</pointsize>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="text">
+           <string>Client</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QTreeWidget" name="CustomertreeWidget">
           <column>
            <property name="text">
@@ -176,6 +189,19 @@
             <string>Address</string>
            </property>
           </column>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="label_3">
+          <property name="font">
+           <font>
+            <pointsize>10</pointsize>
+            <bold>true</bold>
+           </font>
+          </property>
+          <property name="text">
+           <string>Product</string>
+          </property>
          </widget>
         </item>
         <item>

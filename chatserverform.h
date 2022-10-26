@@ -1,10 +1,10 @@
 #ifndef CHATSERVERFORM_H
 #define CHATSERVERFORM_H
-
+#include "chatclientform.h"
 #include <QWidget>
 #include <QList>
 #include <QHash>
-#include "chatclientform.h"
+
 class QLabel;
 class QTcpServer;
 class QTcpSocket;

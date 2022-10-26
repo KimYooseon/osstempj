@@ -22,11 +22,14 @@
 Widget::Widget(QWidget *parent) : QWidget(parent), isSent(false) {
     // 연결한 서버 정보 입력을 위한 위젯들
     name = new QLineEdit(this);
+
+    //고객 이름 기본값 설정해주는 부분
     QSettings settings("ChatClient", "Chat Client");
     name->setText(settings.value("ChatClient/ID").toString());
 
     serverAddress = new QLineEdit(this);
     serverAddress->setText("127.0.0.1");
+
     //serverAddress->setInputMask("999.999.999.999;_");
     QRegularExpression re("^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\."
                           "(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\."
@@ -88,7 +91,7 @@ Widget::Widget(QWidget *parent) : QWidget(parent), isSent(false) {
     setLayout(mainLayout);
 
     /* 채팅을 위한 소켓 */
-    clientSocket = new QTcpSocket(this);			// 클라이언트 소켓 생성
+    clientSocket = new QTcpSocket(this);			// 클라이언트 소켓 생성. 서버에 연결될 때 소켓을 만듦
     connect(clientSocket, &QAbstractSocket::errorOccurred,
             [=]{ qDebug( ) << clientSocket->errorString( ); });
     connect(clientSocket, SIGNAL(readyRead( )), SLOT(receiveData( )));
@@ -96,7 +99,7 @@ Widget::Widget(QWidget *parent) : QWidget(parent), isSent(false) {
 
     /* 파일 전송을 위한 소켓 */
     fileClient = new QTcpSocket(this);
-    connect(fileClient, SIGNAL(bytesWritten(qint64)), SLOT(goOnSend(qint64)));
+    connect(fileClient, SIGNAL(bytesWritten(qint64)), SLOT(goOnSend(qint64)));  //데이터를 보낼 준비가되면 다른 데이터를 보내고, 데이터를 다 보냈을 때는 데이터 전송을 끝냄
     //    connect(fileClient, SIGNAL(disconnected( )), fileClient, SLOT(deletelater( )));
 
     progressDialog = new QProgressDialog(0);
@@ -151,15 +154,15 @@ Widget::Widget(QWidget *parent) : QWidget(parent), isSent(false) {
 
 Widget::~Widget( )
 {
-    clientSocket->close( );
+    clientSocket->close( );                             //객체가 삭제될 때 소켓을 닫음
     QSettings settings("ChatClient", "Chat Client");
-    settings.setValue("ChatClient/ID", name->text());
+    settings.setValue("ChatClient/ID", name->text());   // 키 / 값
 }
 
 /* 창이 닫힐 때 서버에 연결 접속 메시지를 보내고 종료 */
 void Widget::closeEvent(QCloseEvent*)
 {
-    sendProtocol(Chat_LogOut, name->text().toStdString().data());
+    sendProtocol(Chat_LogOut, name->text().toStdString().data()); //Chat_LogOut할 때 데이터를 보내줌
     clientSocket->disconnectFromHost();
     if(clientSocket->state() != QAbstractSocket::UnconnectedState)
         clientSocket->waitForDisconnected();
@@ -168,7 +171,7 @@ void Widget::closeEvent(QCloseEvent*)
 /* 데이터를 받을 때 */
 void Widget::receiveData( )
 {
-    QTcpSocket *clientSocket = dynamic_cast<QTcpSocket *>(sender( ));
+    QTcpSocket *clientSocket = dynamic_cast<QTcpSocket *>(sender( ));   //서버와 통신
     if (clientSocket->bytesAvailable( ) > BLOCK_SIZE) return;
     QByteArray bytearray = clientSocket->read(BLOCK_SIZE);
 
@@ -283,7 +286,7 @@ void Widget::sendFile() // Open the file and get the file name (including path)
     outBlock.clear();
 
     QString filename = QFileDialog::getOpenFileName(this);
-    if(filename.length()) {
+    if(filename.length()) { //파일이름 선택 => 파일 이름의 길이가 있으면
         file = new QFile(filename);
         file->open(QFile::ReadOnly);
 
@@ -302,15 +305,15 @@ void Widget::sendFile() // Open the file and get the file name (including path)
         loadSize = 1024; // The size of data sent each time
 
         QDataStream out(&outBlock, QIODevice::WriteOnly);
-        out << qint64(0) << qint64(0) << filename << name->text();
+        out << qint64(0) << qint64(0) << filename << name->text();  //filename과 name의 크기가 현재는 어떤 상태인지 모르니까 일단 만들어놓음
 
         totalSize += outBlock.size(); // The total size is the file size plus the size of the file name and other information
         byteToWrite += outBlock.size();
 
-        out.device()->seek(0); // Go back to the beginning of the byte stream to write a qint64 in front, which is the total size and file name and other information size
+        out.device()->seek(0); // 앞으로 이동해 일단 0으로 설정되어 있었던 totalsize와 byteToWrite의 제대로 된 값을 적어줌 // Go back to the beginning of the byte stream to write a qint64 in front, which is the total size and file name and other information size
         out << totalSize << qint64(outBlock.size());
 
-        fileClient->write(outBlock); // Send the read file to the socket
+        fileClient->write(outBlock); // Send the read file to the socket    //서버로 보내줌
 
         progressDialog->setMaximum(totalSize);
         progressDialog->setValue(totalSize-byteToWrite);
@@ -319,10 +322,6 @@ void Widget::sendFile() // Open the file and get the file name (including path)
     qDebug() << QString("Sending file %1").arg(filename);
 }
 
-//void A(QHash<QString, int> clientIDHash)
-//{
-//    A = cllientIDHash;
-//}
 
 void Widget::nameFlagSended(int nameflag1)
 {
