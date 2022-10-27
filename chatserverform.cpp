@@ -226,7 +226,7 @@ void ChatServerForm::on_clientTreeWidget_customContextMenuRequested(const QPoint
     foreach(QAction *action, menu->actions()) {
         if(ui->clientTreeWidget->currentItem() != nullptr){
             if(action->objectName() == "Invite")
-                action->setEnabled(ui->clientTreeWidget->currentItem()->text(0) != "O");    //현재 상태가 "O"가 아닐 때(대기방에 입장한 상태일 때), invite가 가능하도록 만든다
+                action->setEnabled(ui->clientTreeWidget->currentItem()->text(0) == "-");    //현재 상태가 "-"일 때만 Invite를 활성화 시켜줌
             else
                 action->setEnabled(ui->clientTreeWidget->currentItem()->text(0) == "O");    //현재 상태가 "O"일 때(대화방에 입장한 상태일 때, invite가 불가능하도록 만든다
         }
@@ -242,10 +242,10 @@ void ChatServerForm::kickOut()
     QTcpSocket* sock = clientSocketHash[name];                      //이름으로 소켓을 찾아 줌. sock에 clientSocketHash[name]을 저장해 줌(clientSockHash는 name과 socket이 짝을 이룸)
 
     QByteArray sendArray;
-    QDataStream out(&sendArray, QIODevice::WriteOnly);
-    out << Chat_KickOut;                                            //?????
-    out.writeRawData("", 1020);                                     //???
-    sock->write(sendArray);                                         //???
+    QDataStream out(&sendArray, QIODevice::WriteOnly);              //쓰기 가능한 상태
+    out << Chat_KickOut;                                            //채팅을 KickOut상태로 바꿔줌
+    out.writeRawData("", 1020);                                     //원시 데이터를 빈 내용으로 초기화 함
+    sock->write(sendArray);                                         //sendArray에 저장된 데이터를 소켓에 적어줌
 
     ui->clientTreeWidget->currentItem()->setText(0, "-");           //고객을 강퇴한 상태에서는 고객은 아예 연결이 끊어진 것이 아니고 대기방에 여전히 존재하는 상태임. 그러므로 현 상태는 X가 아닌 -임
 }
@@ -255,14 +255,16 @@ void ChatServerForm::inviteClient()
 {
     if(ui->clientTreeWidget->topLevelItemCount()) {                     //clientTreeWidget에 고객이 1명 이상 있을 때(고객이 추가되어 있지 않으면 실행되지 않음)
 
-        QString name = ui->clientTreeWidget->currentItem()->text(1);    //clientTreeWidget의 현재 아이템 값에서 1번째 인덱스값인 고객이름을 name에 저장해준다.
+
 
         QByteArray sendArray;
-        QDataStream out(&sendArray, QIODevice::WriteOnly);
-        out << Chat_Invite;
-        out.writeRawData("", 1020);
+        QDataStream out(&sendArray, QIODevice::WriteOnly);              //쓰기 가능한 상태
+        out << Chat_Invite;                                             //채팅을 invite상태로 바꾸어줌
+        out.writeRawData("", 1020);                                     //원시 데이터를 빈 내용으로 초기화 해 줌
 
-        QTcpSocket* sock = clientSocketHash[name];
+        /* 소켓은 현재 선택된 아이템에 표시된 이름과 해쉬로 부터 가져온다. */
+        QString name = ui->clientTreeWidget->currentItem()->text(1);    //clientTreeWidget의 현재 아이템 값에서 1번째 인덱스값인 고객이름을 name에 저장해준다.
+        QTcpSocket* sock = clientSocketHash[name];                      //이름과 소켓을 짝을 지어줌
 
         // 로그인 안한사람 invite할 때 crashed나는 문제 해결
         if(sock == nullptr)
@@ -270,81 +272,79 @@ void ChatServerForm::inviteClient()
             return;
         }
 
-        sock->write(sendArray);
+        sock->write(sendArray);                                         //sendArray에 저장된 데이터를 소켓에 적어줌
 
         quint16 port = sock->peerPort();    // invite를 했을 때 고객의 이름이 messagetreewidget에 뜨게 만들어주는 부분
-        clientNameHash[port] = name;
+        clientNameHash[port] = name;        //포트번호에 이름을 짝지어 넣어줌
 
-        foreach(auto item, ui->clientTreeWidget->findItems(name, Qt::MatchFixedString, 1)) {
-            if(item->text(1) != "O") {
-                item->setText(0, "O");
-            }
-        }
+        ui->clientTreeWidget->currentItem()->setText(0, "O");           //초대했으니 현재 고객 상태는 O가 되어야 함
     }
 }
 
-/* 파일 전송 */
+/* 파일 전송을 위한 소켓 생성 */
 void ChatServerForm::acceptConnection()
 {
     qDebug("Connected, preparing to receive files!");
 
-    QTcpSocket* receivedSocket = fileServer->nextPendingConnection();
-    connect(receivedSocket, SIGNAL(readyRead()), this, SLOT(readClient()));
+    QTcpSocket* receivedSocket = fileServer->nextPendingConnection();           //receivedSocket에 fileServer에서 저장해두었던 다음 보류중인 연결을 연결해준다
+    connect(receivedSocket, SIGNAL(readyRead()), this, SLOT(readClient()));     //받은 소켓에서 정보를 읽어 serverform에서 파일 전송이 가능하도록 만듦
 }
 
+/* 파일 전송 */
 void ChatServerForm::readClient()
 {
     qDebug("Receiving file ...");
-    QTcpSocket* receivedSocket = dynamic_cast<QTcpSocket *>(sender( ));
+    QTcpSocket* receivedSocket = dynamic_cast<QTcpSocket *>(sender( ));     //chatclientform에서 정보들을 받아와 receivedSocket에 넣어줌
     QString filename, name;
 
-    if (byteReceived == 0) { // 파일 전송 시작 : 파일에 대한 정보를 이용해서 QFile 객체 생성
-        progressDialog->reset();
-        progressDialog->show();
+    if (byteReceived == 0) {            // 파일 전송 시작 : 파일에 대한 정보를 이용해서 QFile 객체 생성
+        progressDialog->reset();        //진행중인 다이얼로그를 초기화해서
+        progressDialog->show();         //보여줌
 
-        QString ip = receivedSocket->peerAddress().toString();
-        quint16 port = receivedSocket->peerPort();
+        QString ip = receivedSocket->peerAddress().toString();              //peerAddress를 변수 ip에 저장해준다
+        quint16 port = receivedSocket->peerPort();                          //peerPort번호를 변수 port에 저장해준다
         qDebug() << ip << " : " << port;
 
-        QDataStream in(receivedSocket);
-        in >> totalSize >> byteReceived >> filename >> name;
-        progressDialog->setMaximum(totalSize);
+        QDataStream in(receivedSocket);                                     //파일을 전송해줄 준비
+        in >> totalSize >> byteReceived >> filename >> name;                //전체 사이즈와 받은 바이트 크기와 파일 이름과 고객 이름을 입력해줌
+        progressDialog->setMaximum(totalSize);                              //진행중인 다이얼로그의 totalSize를 최대로 설정한다
 
-        QTreeWidgetItem* item = new QTreeWidgetItem(ui->messageTreeWidget);
-        item->setText(0, ip);
-        item->setText(1, QString::number(port));
-        item->setText(2, QString::number(clientIDHash[name]));  //id값을 이름을 이용해 가져옴
-        item->setText(3, name);
-        item->setText(4, filename);
-        item->setText(5, QDateTime::currentDateTime().toString());
-        item->setToolTip(4, filename);
+        QTreeWidgetItem* item = new QTreeWidgetItem(ui->messageTreeWidget); //messageTreeWidget에 위치해 있는 정보들에 대한 변수 item을 생성함
+        item->setText(0, ip);                                               //messageTreeWidget의 0번째 인덱스에는 ip를 입력해 줌
+        item->setText(1, QString::number(port));                            //messageTreeWidget의 1번째 인덱스에는 port번호를 입력해 줌
+        item->setText(2, QString::number(clientIDHash[name]));              //messageTreeWidget의 2번째 인덱스에는 id를 입력해 줌. id값을 이름을 이용해 가져옴
+        item->setText(3, name);                                             //messageTreeWidget의 3번째 인덱스에는 name을 입력해 줌
+        item->setText(4, filename);                                         //messageTreeWidget의 4번째 인덱스에는 filename을 입력해 줌
+        item->setText(5, QDateTime::currentDateTime().toString());          //messageTreeWidget의 5번째 인덱스에는 현재날짜를 입력해 줌
+        item->setToolTip(4, filename);                                      //messageTreeWidget의 4번째 인덱스에 마우스 커서를 올렸을 때는 filename에 대한 정보를 툴팁을 통헤 보여줌
 
         /* 컨텐츠의 길이로 QTreeWidget의 헤더의 크기를 고정 */
         for(int i = 0; i < ui->messageTreeWidget->columnCount(); i++)
             ui->messageTreeWidget->resizeColumnToContents(i);
 
-        ui->messageTreeWidget->addTopLevelItem(item);
+        ui->messageTreeWidget->addTopLevelItem(item);                       //item을 messageTreeWidget에 추가한다
 
-        logThread->appendData(item);
+        logThread->appendData(item);                                        //logThread에 item을 추가해 줌
 
         QFileInfo info(filename);
-        QString currentFileName = info.fileName();  //경로에서 이름을 뽑아옴
+        QString currentFileName = info.fileName();                          //경로에서 이름을 뽑아옴
         file = new QFile(currentFileName);
         file->open(QFile::WriteOnly);
     } else { // 파일 데이터를 읽어서 저장
-        inBlock = receivedSocket->readAll();
+        inBlock = receivedSocket->readAll();                                //받아온 소켓에 있는 정보를 모두 읽어 변수 inBlock에 저장해 줌
 
-        byteReceived += inBlock.size();
-        file->write(inBlock);
-        file->flush();
+        byteReceived += inBlock.size();                                     //받은 바이트 크기에 변수 inBlock의 크기를 더해줌 =>왜???
+        file->write(inBlock);                                               //file에 inBlock에 저장되어 있는 정보를 적어준다
+        file->flush();                                                      //file을 비워줌
     }
 
-    progressDialog->setValue(byteReceived);
+    progressDialog->setValue(byteReceived);                                 //현재 진행중인 다이얼로그의 값을 byteReceived의 값으로 설정해 줌
 
-    if (byteReceived == totalSize) {    //파일을 다 읽으면 QFile 객체를 닫고 삭제
+    if (byteReceived == totalSize) {                                        //파일을 다 읽으면 QFile 객체를 닫고 삭제
         qDebug() << QString("%1 receive completed").arg(filename);
 
-        inBlock.clear();
+        /*초기화*/
+        inBlock.clear();                                                    //파일을 다 읽은 상태니까 inBlock안의 정보들을 비워줌
         byteReceived = 0;
         totalSize = 0;
         progressDialog->reset();
@@ -355,26 +355,28 @@ void ChatServerForm::readClient()
 }
 
 
+/*client정보를 clientmanagerform에서 삭제했을 때 서버에서도 자동으로 고객이름이 지워지도록 만드는 부분*/
 void ChatServerForm::removeClientFromServer(int i)
 {
     ui->clientTreeWidget->takeTopLevelItem(i);
 }
 
+/*client정보를 clientmanagerform에서 변경했을 때 서버에서도 자동으로 고객이름이 변경되도록 만드는 부분*/
 void ChatServerForm::modifyClientFromServer(QString name, int id, int i)
 {
     ui->clientTreeWidget->topLevelItem(i)->setText(1, name);
     clientIDHash[name] = id;
 }
 
-
+/*고객이름을 chatclient에서 받아와 고객 리스트에 존재하는 이름을 입력했는지 확인하는 부분*/
 void ChatServerForm::clientNameSended(QString name)
 {
     int nameflag;
 
-    if(ui->clientTreeWidget->findItems(name, Qt::MatchFixedString, 1).length() == 0)
-        nameflag = 0;
+    if(ui->clientTreeWidget->findItems(name, Qt::MatchFixedString, 1).length() == 0)    //고객리스트에 있는 이름인지 확인
+        nameflag = 0;                                                                   //없는 이름을 입력했을 때 nameflag에 0을 넣어 emit으로 chatclient로 보내줌
     else
-        nameflag = 1;
+        nameflag = 1;                                                                   //있는 이름을 입력했을 때 nameflag에 1을 넣어 emit으로 chatclient로 보내줌
 
     emit sendNameFlag(nameflag);
 }

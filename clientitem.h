@@ -15,7 +15,6 @@ public:
     QString getAddress() const;
     void setAddress(QString&);
     int id() const;
-    bool operator==(const ClientItem &other) const;
 };
 
 #endif // CLIENTITEM_H

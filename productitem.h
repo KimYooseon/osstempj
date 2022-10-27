@@ -17,7 +17,6 @@ public:
 
     QString getCategory() const;
     void setCategory(QString&);
-    bool operator==(const ProductItem &other) const;
 };
 
 #endif // PRODUCTITEM_H

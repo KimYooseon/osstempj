@@ -30,9 +30,6 @@ public:
     void setPhoneNum(QString&);
 
     QString getAddress() const;
-
-    bool operator==(const ShopItem &other) const;
-
 };
 
 #endif // SHOPITEM_H
