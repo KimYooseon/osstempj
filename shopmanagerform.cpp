@@ -3,7 +3,6 @@
 #include "shopitem.h"
 #include "productitem.h"
 
-
 #include <QFile>
 #include <QMenu>
 #include <QDebug>
@@ -41,7 +40,6 @@ ShopManagerForm::ShopManagerForm(QWidget *parent) :
     connect(ui->searchLineEdit, SIGNAL(returnPressed()),
             this, SLOT(on_searchPushButton_clicked()));
 
-    //CustomertreeWidgetn
 
 
 }
@@ -195,18 +193,24 @@ void ShopManagerForm::on_modifyPushButton_clicked()
 /*add 버튼을 클릭했을 때*/
 void ShopManagerForm::on_addPushButton_clicked()
 {
+    qDebug()<<"ddddddddddddd";
     QString date, cid, pid, address, phonenumber;
     int count, price, totalprice;
     int sid = makeId( );                        //makeId()를 통해 새로운 상품 id 값을 추가해 줌
 
     //정보를 입력하지 않은 채로 add버튼을 눌렀을 때
-    if(ui->CustomertreeWidget->topLevelItemCount() == 0 || ui->ProducttreeWidget->topLevelItemCount() == 0 || date == "" ||count == 0)
+    if(ui->CustomertreeWidget->topLevelItemCount() == 0 || ui->ProducttreeWidget->topLevelItemCount() == 0 || ui->dateLineEdit->text() == ""
+            ||ui->countLineEdit->text() == "")
     {
         return;                                 //그냥 리턴해줘서 아무 일도 일어나지 않게끔 해 줌                                                   //그냥 리턴해줘서 아무 일도 일어나지 않게끔 해 줌
     }
 
     cid = ui->shopcidcomboBox->currentText();   //shopcidcomboBox에서 선택한 값을 변수 cid에 저장해준다
     pid = ui->shoppidcomboBox->currentText();   //shoppidcomboBox에서 선택한 값을 변수 pid에 저장해준다
+
+    qDebug() <<"cid: " <<cid;
+    qDebug() <<"pid: " <<pid;
+
     date = ui->dateLineEdit->text();            //dateLineEdit에 입력한 값을 변수 date에 저장해준다
     count = ui->countLineEdit->text().toInt();  //countLineEdit에 입력한 값을 변수 count에 저장해준다
 

@@ -80,6 +80,8 @@ ChatServerForm::ChatServerForm(QWidget *parent) :
     connect(ui->savePushButton, SIGNAL(clicked()), logThread, SLOT(saveData()));   //save버튼을 눌렀을 때 logThread에서 데이터를 저장하게 만듦
 
     qDebug() << tr("The server is running on port %1.").arg(chatServer->serverPort( ));
+
+    ui->clientTreeWidget->hideColumn(2);
 }
 
 ChatServerForm::~ChatServerForm()
@@ -124,8 +126,9 @@ void ChatServerForm::receiveData( )
     switch(type) {      //채팅의 타입에 따라 case를 선택해 줌
     case Chat_Login:    //Chat_Login 상태일 때
         foreach(auto item, ui->clientTreeWidget->findItems(name, Qt::MatchFixedString, 1)) {    //foreach가 돌아가면서 clientTreeWidget에서 name을 검색함.
-            if(item->text(0) != "-") {                      //현재 상태가 "-"가 아닐 때
-                item->setText(0, "-");                      //현재 상태를 "-"를 설정해 줌
+            if(item->text(2) != "-") {                      //현재 상태가 "-"가 아닐 때
+                item->setText(2, "-");                      //현재 상태를 "-"를 설정해 줌
+                item->setIcon(0, QIcon("loading.png"));
                 clientList.append(clientConnection);        //QList<QTcpSocket*> clientList;
                 clientSocketHash[name] = clientConnection;  //clientSocketHash로 name과 clientConnection을 이어준다. 이름에 소켓을 연결해줌
             }
@@ -133,8 +136,9 @@ void ChatServerForm::receiveData( )
         break;
     case Chat_In:       //Chat_In 상태일 때
         foreach(auto item, ui->clientTreeWidget->findItems(name, Qt::MatchFixedString, 1)) {    //clientTreeWidget에서 name을 검색함
-            if(item->text(0) != "O") {                      //현재 상태가 "O"가 아닐 때
-                item->setText(0, "O");                      //현재 상태를 "O"를 설정해 줌
+            if(item->text(2) != "O") {                      //현재 상태가 "O"가 아닐 때
+                item->setText(2, "O");                      //현재 상태를 "O"를 설정해 줌
+                item->setIcon(0, QIcon("connected.png"));
             }
             clientNameHash[port] = name;                    //clientNameHash로 port번호와 name를 이어준다
         }
@@ -174,16 +178,18 @@ void ChatServerForm::receiveData( )
         break;
     case Chat_Out:      //Chat_Out 상태일 때
         foreach(auto item, ui->clientTreeWidget->findItems(name, Qt::MatchContains, 1)) {   //clientTreeWidget에서 name을 찾고 그에 해당하는 item을 변수로 삼음
-            if(item->text(0) != "-") {      //item에 있는 0번째 인덱스가 "-"가 아니면
-                item->setText(0, "-");      //item의 0번째 인덱스를 "-"로 바꾸어준다
+            if(item->text(2) != "-") {      //item에 있는 0번째 인덱스가 "-"가 아니면
+                item->setText(2, "-");      //item의 0번째 인덱스를 "-"로 바꾸어준다
+                item->setIcon(0, QIcon("loading.png"));
             }
             clientNameHash.remove(port);    //clientNameHash의 port를 삭제해준다(쌍인 이름도 함께 삭제됨)
         }
         break;
     case Chat_LogOut:   //Chat_LogOut 상태일 때
         foreach(auto item, ui->clientTreeWidget->findItems(name, Qt::MatchContains, 1)) {   //clientTreeWidget에서 name을 찾고 그에 해당하는 item을 변수로 삼음
-            if(item->text(0) != "X") {          //item에 있는 0번째 인덱스가 "X"가 아니면
-                item->setText(0, "X");          //item의 0번째 인덱스를 "X"로 바꾸어준다
+            if(item->text(2) != "X") {          //item에 있는 0번째 인덱스가 "X"가 아니면
+                item->setText(2, "X");          //item의 0번째 인덱스를 "X"로 바꾸어준다
+                item->setIcon(0, QIcon("disconnected.png"));
                 clientList.removeOne(clientConnection);  // QList<QTcpSocket*> clientList;    //clientList에서 clientConnection을 삭제해준다
                 clientSocketHash.remove(name);  //clientSocketHash에서 name을 삭제해준다
             }
@@ -200,7 +206,8 @@ void ChatServerForm::removeClient()
     if(clientConnection != nullptr){
         QString name = clientNameHash[clientConnection->peerPort()];    //name에 peerPort에 해당하는 고객연결을 실행하고 name에 그 포트번호를 넣어주어 해시값들을 연결한다
         foreach(auto item, ui->clientTreeWidget->findItems(name, Qt::MatchContains, 1)) {   //clientTreeWidget에서 name을 찾고 그에 해당하는 item을 변수로 삼음
-            item->setText(0, "X");                  //0번 인덱스를 X로 만든다(disconnect되었을 때)
+            item->setText(2, "X");                  //0번 인덱스를 X로 만든다(disconnect되었을 때)
+            item->setIcon(0, QIcon("disconnected.png"));
         }
 
         clientList.removeOne(clientConnection);     //clientList에서 clientConnection을 없애준다
@@ -213,7 +220,8 @@ void ChatServerForm::addClientToServer(QString name, int id)
 {
     clientIDList << id;                                 //clientIDList에 id를 넣어줌
     QTreeWidgetItem* item = new QTreeWidgetItem(ui->clientTreeWidget);  //clientTreeWidget에 있는 정보들을 item에 저장함
-    item->setText(0, "X");                              //고객을 추가한 상태에서는 일단 초기값으로 현재 고객 상태를 "X"로 만들어 줌(0번째 인덱스)-접속하지 않은 상태
+    item->setIcon(0, QIcon("disconnected.png"));
+    item->setText(2, "X");                              //고객을 추가한 상태에서는 일단 초기값으로 현재 고객 상태를 "X"로 만들어 줌(0번째 인덱스)-접속하지 않은 상태
     item->setText(1, name);                             //1번째 인덱스에는 받아온 이름을 저장해줌
     ui->clientTreeWidget->addTopLevelItem(item);        //item을 clientTreeWidget의 제일 윗 줄에 추가해준다
     clientIDHash[name] = id;                            //clientIDHash에서 name과 id를 쌍을 이루게 한다
@@ -226,9 +234,9 @@ void ChatServerForm::on_clientTreeWidget_customContextMenuRequested(const QPoint
     foreach(QAction *action, menu->actions()) {
         if(ui->clientTreeWidget->currentItem() != nullptr){
             if(action->objectName() == "Invite")
-                action->setEnabled(ui->clientTreeWidget->currentItem()->text(0) == "-");    //현재 상태가 "-"일 때만 Invite를 활성화 시켜줌
+                action->setEnabled(ui->clientTreeWidget->currentItem()->text(2) == "-");    //현재 상태가 "-"일 때만 Invite를 활성화 시켜줌
             else
-                action->setEnabled(ui->clientTreeWidget->currentItem()->text(0) == "O");    //현재 상태가 "O"일 때(대화방에 입장한 상태일 때, invite가 불가능하도록 만든다
+                action->setEnabled(ui->clientTreeWidget->currentItem()->text(2) == "O");    //현재 상태가 "O"일 때(대화방에 입장한 상태일 때, invite가 불가능하도록 만든다
         }
     }
     QPoint globalPos = ui->clientTreeWidget->mapToGlobal(pos);                          //clientTreeWidget에서 오른쪽버튼을 클릭한 마우스 커서의 위치를 구한다
@@ -247,7 +255,8 @@ void ChatServerForm::kickOut()
     out.writeRawData("", 1020);                                     //원시 데이터를 빈 내용으로 초기화 함
     sock->write(sendArray);                                         //sendArray에 저장된 데이터를 소켓에 적어줌
 
-    ui->clientTreeWidget->currentItem()->setText(0, "-");           //고객을 강퇴한 상태에서는 고객은 아예 연결이 끊어진 것이 아니고 대기방에 여전히 존재하는 상태임. 그러므로 현 상태는 X가 아닌 -임
+    ui->clientTreeWidget->currentItem()->setText(2, "-");           //고객을 강퇴한 상태에서는 고객은 아예 연결이 끊어진 것이 아니고 대기방에 여전히 존재하는 상태임. 그러므로 현 상태는 X가 아닌 -임
+    ui->clientTreeWidget->currentItem()->setIcon(0, QIcon("loading.png"));
 }
 
 /*고객 초대 기능*/
@@ -277,7 +286,8 @@ void ChatServerForm::inviteClient()
         quint16 port = sock->peerPort();    // invite를 했을 때 고객의 이름이 messagetreewidget에 뜨게 만들어주는 부분
         clientNameHash[port] = name;        //포트번호에 이름을 짝지어 넣어줌
 
-        ui->clientTreeWidget->currentItem()->setText(0, "O");           //초대했으니 현재 고객 상태는 O가 되어야 함
+        ui->clientTreeWidget->currentItem()->setText(2, "O");           //초대했으니 현재 고객 상태는 O가 되어야 함
+        ui->clientTreeWidget->currentItem()->setIcon(0, QIcon("connected.png"));
     }
 }
 
@@ -333,7 +343,7 @@ void ChatServerForm::readClient()
     } else { // 파일 데이터를 읽어서 저장
         inBlock = receivedSocket->readAll();                                //받아온 소켓에 있는 정보를 모두 읽어 변수 inBlock에 저장해 줌
 
-        byteReceived += inBlock.size();                                     //받은 바이트 크기에 변수 inBlock의 크기를 더해줌 =>왜???
+        byteReceived += inBlock.size();                                     //받은 바이트 크기에 변수 inBlock의 크기를 더해줌 => 파일을 저장할 때는 한번에 저장하는 것이 아니라 나누어 저장
         file->write(inBlock);                                               //file에 inBlock에 저장되어 있는 정보를 적어준다
         file->flush();                                                      //file을 비워줌
     }

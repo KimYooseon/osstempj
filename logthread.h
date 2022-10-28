@@ -22,8 +22,8 @@ signals:
     void send(int data);
 
 public slots:
-    void appendData(QTreeWidgetItem*);
-    void saveData();
+    void appendData(QTreeWidgetItem*);  //데이터들을 itemList에 추가해줌
+    void saveData();                    //채팅로그를 저장
 };
 
 #endif // LOGTHREAD_H

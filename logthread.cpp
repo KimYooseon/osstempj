@@ -21,11 +21,13 @@ void LogThread::run()
     }
 }
 
+/*데이터들을 itemList에 추가해줌*/
 void LogThread::appendData(QTreeWidgetItem* item)
 {
     itemList.append(item);
 }
 
+/*채팅로그를 저장*/
 void LogThread::saveData()
 {
     if(itemList.count() > 0) {

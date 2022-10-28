@@ -218,6 +218,7 @@ void Widget::receiveData( )
         connectButton->setDisabled(true);
         connectButton->setText("Chat in");
         name->setReadOnly(false);                                   // 메시지 입력 불가
+        name->setDisabled(true);
 
         break;
     case Chat_Invite:                                               // 초대면
@@ -228,6 +229,7 @@ void Widget::receiveData( )
         sentButton->setEnabled(true);
         fileButton->setEnabled(true);
         name->setReadOnly(true);                                    // 이미 초대된 상태이기 때문에 고객이름을 변경하지 못하도록 readOnly로 바꾸어준다
+        name->setEnabled(true);
         connectButton->setEnabled(true);
         connectButton->setText(tr("Chat Out"));
         break;

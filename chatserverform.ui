@@ -49,6 +49,11 @@
            <string>Name</string>
           </property>
          </column>
+         <column>
+          <property name="text">
+           <string>Status2</string>
+          </property>
+         </column>
         </widget>
        </item>
        <item>
